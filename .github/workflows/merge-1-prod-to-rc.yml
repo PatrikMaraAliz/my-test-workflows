@@ -51,8 +51,9 @@ jobs:
             echo "Correct tag found."
             if ! git diff --merge-base --quiet origin/${target_branch}; then
               echo "to_be_merged=true" >> $GITHUB_ENV
+            else
+              echo "No difference found. Exiting"
             fi
-            echo "to_be_merged=true" >> $GITHUB_ENV
           else
             echo "No tag with the correct format. Exiting"
             exit 0
