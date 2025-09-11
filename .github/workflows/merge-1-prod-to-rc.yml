@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - 'prod'
-    tags:
-      - '[0-9]*.[0-9]*'
-      - '[0-9]*.[0-9]*.[0-9]*'
 
 concurrency:
   group: release-upmerge
@@ -31,6 +28,35 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "noreply@github.com"
           git config --global push.autoSetupRemote true
+
+      - name: Get the latest major rc branch
+        run: |
+          git fetch origin
+          latest_major_rc=$(git branch --format '%(refname:short)' -r --list 'origin/rc_*' --sort=-committerdate | grep -Ex 'origin/rc_[0-9]+' | head -n1)
+          echo "latest_major_rc=${latest_major_rc#origin/}" >> $GITHUB_ENV
+      - name: Get the target branch and check the diff
+        run: |
+          git fetch --tags --unshallow origin
+          if [[ "${{ env.latest_major_rc }}" == "" ]]; then
+            echo "No release candidate branch at all (never or only for the very first time). Exiting"
+            exit 0
+          elif git merge-base --is-ancestor "origin/${{ env.latest_major_rc }}" "${{ env.source_branch }}"; then
+            echo "The latest major release candidate is merged into the current branch (meaning no active major release candidate). Exiting."
+            exit 0
+          else
+            target_branch=${{ env.latest_major_rc }}
+          fi
+          echo "target_branch=${target_branch}" >> $GITHUB_ENV
+          if git log origin/${target_branch}..origin/prod --oneline --decorate=full | grep -E 'tag: [0-9]+\.[0-9]+(\.[0-9]+)?'; then
+            echo "Correct tag found."
+            if ! git diff --merge-base --quiet origin/${target_branch}; then
+              echo "to_be_merged=true" >> $GITHUB_ENV
+            fi
+            echo "to_be_merged=true" >> $GITHUB_ENV
+          else
+            echo "No tag with the correct format. Exiting"
+            exit 0
+          fi
       - name: Get the target branch and check conditions
         run: |
           git fetch origin
