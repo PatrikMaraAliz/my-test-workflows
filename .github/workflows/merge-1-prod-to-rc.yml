@@ -44,7 +44,7 @@ jobs:
           if [[ "${{ env.latest_major_rc }}" == "" ]]; then
             echo "No release candidate branch at all (never or only for the very first time). Exiting"
             exit 0
-          elif git merge-base --is-ancestor "origin/${{ env.latest_major_rc }}" "${{ env.source_branch }}"; then
+          elif git merge-base --is-ancestor "origin/${{ env.latest_major_rc }}" "origin/${{ env.source_branch }}"; then
             echo "The latest major release candidate is merged into the current branch (meaning no active major release candidate). Exiting."
             exit 0
           else
