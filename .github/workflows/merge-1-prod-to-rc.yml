@@ -40,7 +40,7 @@ jobs:
           echo "latest_major_rc=${latest_major_rc#origin/}" >> $GITHUB_ENV
       - name: Get the target branch and check the diff
         run: |
-          git fetch --tags origin
+          git fetch origin
           if [[ "${{ env.latest_major_rc }}" == "" ]]; then
             echo "No release candidate branch at all (never or only for the very first time). Exiting"
             exit 0
