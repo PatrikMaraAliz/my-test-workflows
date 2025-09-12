@@ -53,10 +53,14 @@ jobs:
             target_branch=${{ env.latest_major_rc }}
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
-          merge_base=$(git merge-base ${{ env.pr_source_branch }} origin/${{ env.source_branch }})
-          pr_log=$(git log ${merge_base}..${{ env.pr_source_branch }} --oneline --decorate=full)
+
+          pr_head_sha=${{ github.event.pull_request.head.sha }}
+          merge_base=$(git merge-base $pr_head_sha origin/${{ env.source_branch }})
+          pr_log=$(git log ${merge_base}..$pr_head_sha --oneline --decorate=full)
+
           echo "--- Git log output for commits in the PR ---"
           echo "$pr_log"
+
           # Check for a valid version tag in the saved log
           if echo "$pr_log" | grep -E 'tag: [0-9]+\.[0-9]+(\.[0-9]+)?'; then
             echo "Valid tag found in pull request commits."
