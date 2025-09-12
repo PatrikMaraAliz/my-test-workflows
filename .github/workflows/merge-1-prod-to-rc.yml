@@ -1,9 +1,7 @@
 name: merge prod to rc
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - 'prod'
 
@@ -22,12 +20,10 @@ jobs:
     steps:
       - name: Source branch
         run: echo "source_branch=prod" >> $GITHUB_ENV
-      - name: PR source branch
-        run: echo "pr_source_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
       - name: Check out the source branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.pr_source_branch }}
+          ref: ${{ env.source_branch }}
           fetch-depth: 0
       - name: Set up git
         run: |
@@ -54,19 +50,15 @@ jobs:
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
 
-          # The SHA of the last commit in the pull request
-          pr_merge_sha=${{ github.event.pull_request.merge_commit_sha }}
-
-          pr_log=$(git log ${pr_merge_sha}^1..${pr_merge_sha}^2 --oneline --decorate=full)
-
-          echo "--- Git log output for the PR ---"
+          pr_log=$(git log ${{ github.event.before }}..${{ github.event.after }} --oneline --decorate=full)
+          
+          echo "--- Git log output from push event ---"
           echo "$pr_log"
-
-          # Check for a valid version tag in the log of the single commit
+          
           if echo "$pr_log" | grep -E 'tag: refs/tags/[0-9]+\.[0-9]+(\.[0-9]+)?'; then
-            echo "Valid tag found in pull request commit."
+            echo "Valid tag found in pull request commits."
           else
-            echo "No valid tag found in pull request commit. Aborting."
+            echo "No valid tag found in pull request commits. Aborting."
             exit 1
           fi
 
