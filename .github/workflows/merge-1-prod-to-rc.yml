@@ -29,9 +29,6 @@ jobs:
         with:
           ref: ${{ env.pr_source_branch }}
           fetch-depth: 0
-      - name: Fetch the head branch
-        run: |
-          git fetch origin ${{ env.pr_source_branch }}:${{ env.pr_source_branch }}
       - name: Set up git
         run: |
           git config --global user.name "GitHub Actions"
