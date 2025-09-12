@@ -53,8 +53,8 @@ jobs:
             target_branch=${{ env.latest_major_rc }}
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
-          merge_base=$(git merge-base ${{ pr_source_branch }} ${{ pr_source_branch }})
-          pr_log=$(git log ${merge_base}..${{ github.event.pull_request.head.ref }} --oneline --decorate=full)
+          merge_base=$(git merge-base ${{ env.pr_source_branch }} ${{ env.pr_source_branch }})
+          pr_log=$(git log ${merge_base}..${{ env.pr_source_branch }} --oneline --decorate=full)
           echo "--- Git log output for commits in the PR ---"
           echo "$pr_log"
           # Check for a valid version tag in the saved log
