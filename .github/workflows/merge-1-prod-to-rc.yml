@@ -1,14 +1,16 @@
+# Merge changes in prod branch to the active major release candidate (if exists)
 name: merge prod to rc
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
-      - 'prod'
+      - prod
+    tags:
+      - '[0-9]*.[0-9]*'
+      - '[0-9]*.[0-9]*.[0-9]*'
 
 concurrency:
-  group: release-upmerge
+  group: prod-upmerge
 
 permissions:
   contents: 'write'
@@ -17,18 +19,17 @@ permissions:
 
 jobs:
   prod-upmerge:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     steps:
       - name: Source branch
         run: echo "source_branch=prod" >> $GITHUB_ENV
-      - name: PR source branch
-        run: echo "pr_source_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
+
       - name: Check out the source branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ env.pr_source_branch }}
+          ref: ${{ env.source_branch }}
           fetch-depth: 0
+
       - name: Set up git
         run: |
           git config --global user.name "GitHub Actions"
@@ -40,63 +41,51 @@ jobs:
           git fetch origin
           latest_major_rc=$(git branch --format '%(refname:short)' -r --list 'origin/rc_*' --sort=-committerdate | grep -Ex 'origin/rc_[0-9]+' | head -n1)
           echo "latest_major_rc=${latest_major_rc#origin/}" >> $GITHUB_ENV
-      - name: Get the target branch and check the diff
+
+      - name: Detect if release or tagged commit
         run: |
-          git fetch origin
+          # Vérifier si le dernier commit vient d'une branche release/*
+          release_branch=$(git log -1 --pretty=%D | grep -o 'release/[0-9.]\+' || true)
+          # Vérifier si un tag est attaché
+          commit_tag=$(git tag --points-at HEAD || true)
+
+          if [[ -n "$release_branch" || -n "$commit_tag" ]]; then
+            echo "to_be_merged=true" >> $GITHUB_ENV
+          else
+            echo "to_be_merged=false" >> $GITHUB_ENV
+          fi
+
+          echo "release_branch=$release_branch"
+          echo "commit_tag=$commit_tag"
+
+      - name: Get the target branch
+        run: |
           if [[ "${{ env.latest_major_rc }}" == "" ]]; then
-            echo "No release candidate branch at all (never or only for the very first time). Aborting"
-            exit 0
-          elif git merge-base --is-ancestor "origin/${{ env.latest_major_rc }}" "origin/${{ env.source_branch }}"; then
-            echo "The latest major release candidate is merged into the current branch (meaning no active major release candidate). Aborting."
-            exit 0
+            target_branch=main
           else
             target_branch=${{ env.latest_major_rc }}
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
 
-          # The SHA of the last commit in the pull request
-          pr_merge_sha=${{ github.event.pull_request.merge_commit_sha }}
-
-          pr_log=$(git log ${pr_merge_sha}^1..${pr_merge_sha}^2 --oneline --decorate=full)
-
-          echo "--- Git log output for the PR ---"
-          echo "$pr_log"
-
-          # Check for a valid version tag in the log of the single commit
-          if echo "$pr_log" | grep -E 'tag: refs/tags/[0-9]+\.[0-9]+(\.[0-9]+)?'; then
-            echo "Valid tag found in pull request commit."
-          else
-            echo "No valid tag found in pull request commit. Aborting."
-            exit 1
-          fi
-
-          if ! git diff --merge-base --quiet origin/${target_branch}; then
-            echo "to_be_merged=true" >> $GITHUB_ENV
-          else
-            echo "No difference found. Aborting"
-            exit 0
-          fi
       - name: Get commit date of the source branch
-        run: echo "source_date=$(git log -1 --format=%cd --date=format:%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+        run: |
+          echo "source_date=$(git log -1 ${{ github.sha }} --format=%cd --date=format:%Y-%m-%d_%H-%M-%S)" >> $GITHUB_ENV
+
       - name: Get SHA of the source branch
-        run: echo "source_sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
+        run: |
+          echo "source_sha=${{ github.sha }}" >> $GITHUB_ENV
+
       - name: Create merge branch
         if: ${{ env.to_be_merged == 'true' }}
         run: |
           merge_branch=resolve_${{ env.source_branch }}_to_${{ env.target_branch }}_at_${{ env.source_date }}_from_${{ env.source_sha }}
-          if git ls-remote --quiet --exit-code --heads origin ${merge_branch}; then
-            echo "to_be_merged=false" >> $GITHUB_ENV
-            git checkout ${merge_branch}
-            if ! gh pr update-branch; then
-              echo "The resolve branch cannot be updated"
-            fi
-          else
-            git checkout -b ${merge_branch}
-          fi
+          git checkout -b ${merge_branch}
           echo "merge_branch=${merge_branch}" >> $GITHUB_ENV
+
       - name: Merge the target branch into the merge branch
         if: ${{ env.to_be_merged == 'true' }}
         run: |
+          git fetch origin
           git merge origin/${target_branch} --no-commit --no-ff || true
           if git ls-files -u | grep -q .; then
             echo "Merge conflicts detected! Aborting merge."
@@ -104,9 +93,10 @@ jobs:
           else
             git commit -m "Merge ${{ env.target_branch }} into ${{ env.merge_branch }}" || true
           fi
-          git push
+          git push origin HEAD
         env:
           GH_TOKEN: ${{ github.token }}
+
       - name: Create PR
         if: ${{ env.to_be_merged == 'true' }}
         run: |
@@ -117,18 +107,3 @@ jobs:
           echo "pr_url=${pr_url}" >> $GITHUB_ENV
         env:
           GH_TOKEN: ${{ github.token }}
-        continue-on-error: true
-      - name: Auto approve
-        if: ${{ env.to_be_merged == 'true' }}
-        run: |
-          gh pr review --approve "${{ env.pr_url }}"
-        env:
-          GITHUB_TOKEN: ${{secrets.BOT_TOKEN}}
-        continue-on-error: true
-      - name: Auto merge
-        if: ${{ env.to_be_merged == 'true' }}
-        run: |
-          gh pr merge --auto --merge "${{ env.pr_url }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
