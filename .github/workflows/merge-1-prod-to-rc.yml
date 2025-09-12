@@ -54,20 +54,22 @@ jobs:
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
 
-          pr_head_sha=${{ github.event.pull_request.head.sha }}
-          merge_base=$(git merge-base $pr_head_sha origin/${{ env.source_branch }})
-          pr_log=$(git log ${merge_base}..$pr_head_sha --oneline --decorate=full)
+          # The SHA of the last commit in the pull request
+          pr_merge_sha=${{ github.event.pull_request.merge_commit_sha }}
 
-          echo "--- Git log output for commits in the PR ---"
+          pr_log=$(git log ${pr_merge_sha}^1..${pr_merge_sha}^2 --oneline --decorate=full)
+
+          echo "--- Git log output for the PR ---"
           echo "$pr_log"
 
-          # Check for a valid version tag in the saved log
+          # Check for a valid version tag in the log of the single commit
           if echo "$pr_log" | grep -E 'tag: [0-9]+\.[0-9]+(\.[0-9]+)?'; then
-            echo "Valid tag found in pull request commits."
+            echo "Valid tag found in pull request commit."
           else
-            echo "No valid tag found in pull request commits. Aborting."
+            echo "No valid tag found in pull request commit. Aborting."
             exit 1
           fi
+
           if ! git diff --merge-base --quiet origin/${target_branch}; then
             echo "to_be_merged=true" >> $GITHUB_ENV
           else
