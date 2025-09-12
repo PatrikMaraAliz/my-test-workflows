@@ -22,14 +22,16 @@ jobs:
     steps:
       - name: Source branch
         run: echo "source_branch=prod" >> $GITHUB_ENV
+      - name: PR source branch
+        run: echo "pr_source_branch=${{ github.event.pull_request.head.ref }}" >> $GITHUB_ENV
       - name: Check out the source branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.base.ref }}
+          ref: ${{ env.pr_source_branch }}
           fetch-depth: 0
       - name: Fetch the head branch
         run: |
-          git fetch origin ${{ github.event.pull_request.head.ref }}:${{ github.event.pull_request.head.ref }}
+          git fetch origin ${{ env.pr_source_branch }}:${{ env.pr_source_branch }}
       - name: Set up git
         run: |
           git config --global user.name "GitHub Actions"
@@ -54,8 +56,8 @@ jobs:
             target_branch=${{ env.latest_major_rc }}
           fi
           echo "target_branch=${target_branch}" >> $GITHUB_ENV
-          merge_base=$(git merge-base ${{ github.event.pull_request.head.ref }} origin/${{ github.event.pull_request.base.ref }})
-          if git log ${merge_base}..${{ github.event.pull_request.head.ref }} --oneline --decorate=full | grep -E 'tag: [0-9]+\.[0-9]+(\.[0-9]+)?'; then
+          merge_base=$(git merge-base ${{ env.pr_source_branch }} origin/${{env.source_branch}})
+          if git log ${merge_base}..${{ env.pr_source_branch }} --oneline --decorate=full | grep -E '([0-9]+\.[0-9]+(\.[0-9]+)?)'; then
             echo "Correct tag found."
             if ! git diff --merge-base --quiet origin/${target_branch}; then
               echo "to_be_merged=true" >> $GITHUB_ENV
