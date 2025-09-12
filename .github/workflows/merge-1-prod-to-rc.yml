@@ -63,7 +63,7 @@ jobs:
           echo "$pr_log"
 
           # Check for a valid version tag in the log of the single commit
-          if echo "$pr_log" | grep -E 'tag: [0-9]+\.[0-9]+(\.[0-9]+)?'; then
+          if echo "$pr_log" | grep -E 'tag: refs/tags/[0-9]+\.[0-9]+(\.[0-9]+)?'; then
             echo "Valid tag found in pull request commit."
           else
             echo "No valid tag found in pull request commit. Aborting."
