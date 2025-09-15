@@ -41,7 +41,7 @@ jobs:
           if [[ "${{ env.latest_major_rc }}" == "" ]]; then
             echo "No release candidate branch at all (never or only for the very first time). Aborting"
             exit 0
-          elif git diff "origin/${{ env.latest_major_rc }}" "origin/${{ env.source_branch }}"; then
+          elif git diff --quiet "origin/${{ env.source_branch }} "origin/${{ env.latest_major_rc }}""; then
             echo "The latest major release candidate is merged into the current branch (meaning no active major release candidate). Aborting."
             exit 0
           else
